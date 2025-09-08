@@ -418,8 +418,31 @@ class SSHBackup:
                     self.monitor_thread.daemon = True
                     self.monitor_thread.start()
                 
-                # 使用SCP全量下载
-                self.scp_client.get(remote_path, local_path, recursive=True)
+                # 使用SCP全量下载，但需要调整目标路径以避免重复目录结构
+                # 获取远程目录的父目录，然后下载到正确的位置
+                remote_parent = os.path.dirname(remote_path)
+                remote_dir_name = os.path.basename(remote_path)
+                 
+                # 创建临时目录用于下载
+                temp_download_dir = os.path.join(os.path.dirname(local_path), f"temp_{remote_dir_name}")
+                
+                # 下载到临时目录
+                self.scp_client.get(remote_path, temp_download_dir, recursive=True)
+                
+                # 将下载的内容移动到正确位置
+                downloaded_content = os.path.join(temp_download_dir, remote_dir_name)
+                if os.path.exists(downloaded_content):
+                    # 如果下载的内容在子目录中，移动到目标位置
+                    if os.path.exists(local_path):
+                        shutil.rmtree(local_path)
+                    shutil.move(downloaded_content, local_path)
+                    # 清理临时目录
+                    shutil.rmtree(temp_download_dir)
+                else:
+                    # 如果下载的内容直接在临时目录中，移动到目标位置
+                    if os.path.exists(local_path):
+                        shutil.rmtree(local_path)
+                    shutil.move(temp_download_dir, local_path)
                 
                 # 停止进度监控
                 self.is_downloading = False
